@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Cast &amp; Catch</title>
+<style>
+  :root {
+    --sky-top: #8fd3ff;
+    --sky-bot: #c9f0ff;
+    --sea-top: #3aa6d9;
+    --sea-mid: #1f7fb8;
+    --sea-bot: #0f5583;
+    --sun: #ffd45e;
+    --coral: #ff7a59;
+    --cream: #fff7ec;
+    --ink: #10384f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Baloo 2', 'Trebuchet MS', 'Segoe UI', sans-serif;
+    background: var(--sea-bot);
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: none;
+  }
+  #wrap {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: none;
+  }
+
+  /* ---- HUD ---- */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 18px 22px;
+    pointer-events: none;
+    color: var(--cream);
+    text-shadow: 0 2px 0 rgba(6,52,80,.35);
+  }
+  .stat {
+    background: rgba(16,56,79,.34);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border-radius: 16px;
+    padding: 8px 16px;
+    line-height: 1;
+  }
+  .stat .label {
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    opacity: .82;
+    font-weight: 700;
+  }
+  .stat .value {
+    font-size: 30px;
+    font-weight: 800;
+    margin-top: 4px;
+  }
+  #timer.low .value { color: #ffcaca; }
+
+  #muteBtn {
+    position: absolute;
+    top: 74px; right: 22px;
+    z-index: 6;
+    width: 44px; height: 44px;
+    border: none;
+    border-radius: 14px;
+    background: rgba(16,56,79,.34);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    color: var(--cream);
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 44px;
+    padding: 0;
+    transition: transform .08s ease;
+  }
+  #muteBtn:active { transform: scale(.9); }
+  #muteBtn:focus-visible { outline: 3px solid var(--cream); outline-offset: 3px; }
+  @media (max-width: 420px) { #muteBtn { top: 58px; right: 14px; } }
+
+  /* ---- Overlays ---- */
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--cream);
+    background: radial-gradient(120% 90% at 50% 15%, rgba(56,140,190,.55), rgba(10,58,90,.86));
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    padding: 24px;
+    z-index: 5;
+  }
+  .screen.hidden { display: none; }
+  .title {
+    font-size: clamp(44px, 11vw, 92px);
+    font-weight: 800;
+    line-height: .95;
+    letter-spacing: -.01em;
+    text-shadow: 0 5px 0 rgba(6,52,80,.35);
+  }
+  .title .amp { color: var(--sun); display: inline-block; transform: rotate(-8deg); }
+  .tag {
+    margin-top: 14px;
+    font-size: clamp(15px, 3.4vw, 19px);
+    max-width: 30ch;
+    opacity: .92;
+    font-weight: 600;
+    line-height: 1.45;
+  }
+  .btn {
+    margin-top: 30px;
+    pointer-events: auto;
+    cursor: pointer;
+    border: none;
+    background: var(--sun);
+    color: var(--ink);
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 22px;
+    padding: 16px 44px;
+    border-radius: 999px;
+    box-shadow: 0 6px 0 #d9a52f, 0 12px 22px rgba(6,40,64,.4);
+    transition: transform .08s ease, box-shadow .08s ease;
+  }
+  .btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 #d9a52f, 0 6px 14px rgba(6,40,64,.4);
+  }
+  .btn:focus-visible { outline: 4px solid var(--cream); outline-offset: 4px; }
+
+  .legend {
+    margin-top: 30px;
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 10px 30px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .legend div { display: flex; align-items: center; gap: 9px; }
+  .legend .dot { font-size: 22px; }
+  .legend .pts { opacity: .8; font-weight: 700; }
+
+  .finalScore {
+    font-size: clamp(64px, 16vw, 120px);
+    font-weight: 800;
+    color: var(--sun);
+    line-height: 1;
+    margin: 6px 0 2px;
+    text-shadow: 0 5px 0 rgba(6,52,80,.35);
+  }
+  .finalLabel {
+    font-size: 13px; letter-spacing: .2em; text-transform: uppercase;
+    opacity: .82; font-weight: 700;
+  }
+  .rank { margin-top: 14px; font-size: clamp(20px,4.6vw,26px); font-weight: 800; }
+  .best { margin-top: 8px; font-size: 15px; opacity: .82; font-weight: 600; }
+
+  @media (max-width: 420px) {
+    .legend { grid-template-columns: repeat(2, auto); gap: 8px 18px; font-size: 13px; }
+    #hud { padding: 12px 14px; }
+    .stat .value { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div class="stat" id="scoreBox">
+      <div class="label">Score</div>
+      <div class="value" id="score">0</div>
+    </div>
+    <div class="stat" id="timer">
+      <div class="label">Time</div>
+      <div class="value" id="time">60</div>
+    </div>
+  </div>
+
+  <button id="muteBtn" aria-label="Toggle sound">🔊</button>
+
+  <!-- Start screen -->
+  <div class="screen" id="startScreen">
+    <h1 class="title">Cast <span class="amp">&amp;</span> Catch</h1>
+    <p class="tag">Steer with the mouse or your finger to aim, then click or tap to drop the hook. It grabs the first thing it touches and reels it up — good catches add points, junk takes them away!</p>
+    <div class="legend">
+      <div><span class="dot">🐟</span> Minnow <span class="pts">+1</span></div>
+      <div><span class="dot">🦐</span> Shrimp <span class="pts">+2</span></div>
+      <div><span class="dot">🐠</span> Tropical <span class="pts">+3</span></div>
+      <div><span class="dot">🦀</span> Crab <span class="pts">+4</span></div>
+      <div><span class="dot">🐙</span> Octopus <span class="pts">+5</span></div>
+      <div><span class="dot">🦑</span> Squid <span class="pts">+6</span></div>
+      <div><span class="dot">🪼</span> Jellyfish <span class="pts">+7</span></div>
+      <div><span class="dot">🐡</span> Puffer <span class="pts">+8</span></div>
+      <div><span class="dot">⭐</span> Starfish <span class="pts">+12</span></div>
+      <div><span class="dot">🥾🥫</span> Junk <span class="pts">−3</span></div>
+    </div>
+    <button class="btn" id="startBtn">Start fishing</button>
+  </div>
+
+  <!-- Game over screen -->
+  <div class="screen hidden" id="overScreen">
+    <div class="finalLabel">Final score</div>
+    <div class="finalScore" id="finalScore">0</div>
+    <div class="rank" id="rank">Nice haul!</div>
+    <div class="best" id="best"></div>
+    <button class="btn" id="againBtn">Play again</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ---- Sound (Web Audio, no external files) ----
+const Sound = {
+  ctx: null,
+  muted: false,
+  ready() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) this.ctx = new AC();
+    }
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    return this.ctx;
+  },
+  tone(freq, dur, type = 'sine', vol = 0.2, slideTo = null) {
+    if (this.muted) return;
+    const ac = this.ready();
+    if (!ac) return;
+    const t = ac.currentTime;
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(ac.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  },
+  drop()  { this.tone(520, 0.28, 'sine', 0.18, 120); },          // descending "plop"
+  catch(pts) {                                                    // rising sparkle, higher for rarer
+    const base = 440 + Math.min(pts, 12) * 45;
+    this.tone(base, 0.12, 'triangle', 0.22, base * 1.5);
+    setTimeout(() => this.tone(base * 1.5, 0.14, 'triangle', 0.18), 90);
+  },
+  junk()  { this.tone(180, 0.3, 'sawtooth', 0.16, 70); },        // low "clunk"
+  tick()  { this.tone(880, 0.06, 'square', 0.12); },             // countdown blip
+  over()  {                                                       // little descending jingle
+    [660, 550, 440, 330].forEach((f, i) =>
+      setTimeout(() => this.tone(f, 0.22, 'triangle', 0.2), i * 130));
+  }
+};
+
+// ---- Game state ----
+const State = { MENU: 0, PLAY: 1, OVER: 2 };
+let state = State.MENU;
+let score = 0;
+let timeLeft = 60;
+let lastTime = 0;
+let spawnTimer = 0;
+let elapsed = 0;
+
+const SEA_LEVEL = () => H * 0.26;   // waterline y
+
+// Hook / line
+const hook = {
+  x: W / 2,
+  targetX: W / 2,
+  y: 0,          // set on start
+  rest: 0,       // resting depth just below waterline
+  phase: 'aim',  // 'aim' | 'dropping' | 'reeling'
+  hooked: null   // fish currently on the line
+};
+const DROP_SPEED = 620;
+const REEL_SPEED = 520;
+
+let fishes = [];
+let bubbles = [];
+let splashes = [];
+let scorePops = [];
+
+// ---- Fish types ----
+const TYPES = [
+  { key: 'minnow',  emoji: '🐟', pts: 1,  size: 30, minSpeed: 40,  maxSpeed: 70,  weight: 40, junk: false, color: '#8fd3ff' },
+  { key: 'tropical',emoji: '🐠', pts: 3,  size: 40, minSpeed: 70,  maxSpeed: 110, weight: 22, junk: false, color: '#ffd45e' },
+  { key: 'puffer',  emoji: '🐡', pts: 8,  size: 56, minSpeed: 110, maxSpeed: 150, weight: 7,  junk: false, color: '#ff7a59' },
+  { key: 'octopus', emoji: '🐙', pts: 5,  size: 46, minSpeed: 55,  maxSpeed: 90,  weight: 10, junk: false, color: '#ff8fc7' },
+  { key: 'squid',   emoji: '🦑', pts: 6,  size: 44, minSpeed: 80,  maxSpeed: 120, weight: 8,  junk: false, color: '#c58bff' },
+  { key: 'shrimp',  emoji: '🦐', pts: 2,  size: 30, minSpeed: 60,  maxSpeed: 100, weight: 14, junk: false, color: '#ffb199' },
+  { key: 'crab',    emoji: '🦀', pts: 4,  size: 40, minSpeed: 45,  maxSpeed: 75,  weight: 9,  junk: false, color: '#ff6b57' },
+  { key: 'jelly',   emoji: '🪼', pts: 7,  size: 44, minSpeed: 35,  maxSpeed: 60,  weight: 6,  junk: false, color: '#b6a9ff' },
+  { key: 'star',    emoji: '⭐', pts: 12, size: 40, minSpeed: 130, maxSpeed: 180, weight: 3,  junk: false, color: '#ffe066' },
+  { key: 'boot',    emoji: '🥾', pts: -3, size: 40, minSpeed: 55,  maxSpeed: 85,  weight: 6,  junk: true,  color: '#7a6b5d' },
+  { key: 'can',     emoji: '🥫', pts: -3, size: 36, minSpeed: 50,  maxSpeed: 80,  weight: 5,  junk: true,  color: '#8a8f96' },
+];
+const TOTAL_WEIGHT = TYPES.reduce((s, t) => s + t.weight, 0);
+
+function pickType() {
+  let r = Math.random() * TOTAL_WEIGHT;
+  for (const t of TYPES) { if ((r -= t.weight) < 0) return t; }
+  return TYPES[0];
+}
+
+function spawnFish() {
+  const t = pickType();
+  const dir = Math.random() < 0.5 ? 1 : -1;
+  const sea = SEA_LEVEL();
+  const y = sea + 60 + Math.random() * (H - sea - 120);
+  const speed = t.minSpeed + Math.random() * (t.maxSpeed - t.minSpeed);
+  fishes.push({
+    type: t,
+    x: dir === 1 ? -t.size : W + t.size,
+    y,
+    dir,
+    speed,
+    bob: Math.random() * Math.PI * 2,
+    bobAmp: 6 + Math.random() * 10,
+    caught: false,
+    dead: false
+  });
+}
+
+function spawnBubble() {
+  bubbles.push({
+    x: Math.random() * W,
+    y: H + 10,
+    r: 2 + Math.random() * 5,
+    speed: 20 + Math.random() * 40,
+    wob: Math.random() * Math.PI * 2
+  });
+}
+
+function splash(x, y, color) {
+  for (let i = 0; i < 10; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 60 + Math.random() * 120;
+    splashes.push({
+      x, y,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp - 40,
+      life: 0.5 + Math.random() * 0.3,
+      max: 0.8,
+      r: 2 + Math.random() * 3,
+      color
+    });
+  }
+}
+
+function scorePop(x, y, text, color) {
+  scorePops.push({ x, y, text, color, life: 0, max: 0.9 });
+}
+
+// ---- Input ----
+function setTarget(clientX) {
+  hook.targetX = Math.max(30, Math.min(W - 30, clientX));
+}
+function dropHook() {
+  if (state === State.PLAY && hook.phase === 'aim') { hook.phase = 'dropping'; Sound.drop(); }
+}
+canvas.addEventListener('mousemove', e => setTarget(e.clientX));
+canvas.addEventListener('mousedown', e => { setTarget(e.clientX); dropHook(); });
+canvas.addEventListener('touchstart', e => { setTarget(e.touches[0].clientX); dropHook(); }, { passive: true });
+canvas.addEventListener('touchmove', e => { setTarget(e.touches[0].clientX); e.preventDefault(); }, { passive: false });
+window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); dropHook(); } });
+
+// ---- Buttons ----
+const startScreen = document.getElementById('startScreen');
+const overScreen = document.getElementById('overScreen');
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('againBtn').addEventListener('click', startGame);
+
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', () => {
+  Sound.muted = !Sound.muted;
+  muteBtn.textContent = Sound.muted ? '🔇' : '🔊';
+  if (!Sound.muted) Sound.ready();
+});
+
+let best = 0;
+
+function startGame() {
+  Sound.ready();
+  score = 0;
+  timeLeft = 60;
+  elapsed = 0;
+  spawnTimer = 0;
+  fishes = [];
+  splashes = [];
+  scorePops = [];
+  hook.x = hook.targetX = W / 2;
+  hook.rest = SEA_LEVEL() + 40;
+  hook.y = hook.rest;
+  hook.phase = 'aim';
+  hook.hooked = null;
+  state = State.PLAY;
+  startScreen.classList.add('hidden');
+  overScreen.classList.add('hidden');
+  updateHUD();
+}
+
+function endGame() {
+  state = State.OVER;
+  Sound.over();
+  best = Math.max(best, score);
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('rank').textContent = rankFor(score);
+  document.getElementById('best').textContent = 'Best today: ' + best;
+  overScreen.classList.remove('hidden');
+}
+
+function rankFor(s) {
+  if (s >= 90) return '🏆 Master Angler!';
+  if (s >= 55) return '🎣 Seasoned catcher';
+  if (s >= 25) return '🐟 Getting the hang of it';
+  if (s >= 1)  return '🌊 Nice start!';
+  return '🥾 Better luck next cast';
+}
+
+// ---- HUD ----
+const scoreEl = document.getElementById('score');
+const timeEl = document.getElementById('time');
+const timerBox = document.getElementById('timer');
+function updateHUD() {
+  scoreEl.textContent = score;
+  timeEl.textContent = Math.ceil(timeLeft);
+  timerBox.classList.toggle('low', timeLeft <= 10);
+}
+
+// ---- Update ----
+function update(dt) {
+  // ambient bubbles always
+  if (Math.random() < dt * 6) spawnBubble();
+  for (const b of bubbles) {
+    b.y -= b.speed * dt;
+    b.wob += dt * 2;
+    b.x += Math.sin(b.wob) * 8 * dt;
+  }
+  bubbles = bubbles.filter(b => b.y > -20);
+
+  for (const s of splashes) {
+    s.life -= dt;
+    s.vy += 260 * dt;
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+  }
+  splashes = splashes.filter(s => s.life > 0);
+
+  for (const p of scorePops) { p.life += dt; p.y -= 34 * dt; }
+  scorePops = scorePops.filter(p => p.life < p.max);
+
+  if (state !== State.PLAY) return;
+
+  elapsed += dt;
+  const prevCeil = Math.ceil(timeLeft);
+  timeLeft -= dt;
+  const nowCeil = Math.ceil(timeLeft);
+  if (nowCeil !== prevCeil && nowCeil <= 5 && nowCeil > 0) Sound.tick();
+  if (timeLeft <= 0) { timeLeft = 0; updateHUD(); endGame(); return; }
+
+  hook.rest = SEA_LEVEL() + 40;
+
+  if (hook.phase === 'aim') {
+    // Steer horizontally, hover just below the waterline
+    hook.x += (hook.targetX - hook.x) * Math.min(1, dt * 12);
+    hook.y += (hook.rest - hook.y) * Math.min(1, dt * 10);
+  } else if (hook.phase === 'dropping') {
+    hook.y += DROP_SPEED * dt;
+    if (hook.y >= H - 30) { hook.y = H - 30; hook.phase = 'reeling'; }
+  } else if (hook.phase === 'reeling') {
+    hook.y -= REEL_SPEED * dt;
+    if (hook.hooked) {           // drag the catch along
+      hook.hooked.x = hook.x;
+      hook.hooked.y = hook.y + 8;
+    }
+    if (hook.y <= hook.rest) {
+      hook.y = hook.rest;
+      if (hook.hooked) { landCatch(hook.hooked); hook.hooked = null; }
+      hook.phase = 'aim';
+    }
+  }
+
+  // Spawn ramps up slightly over time
+  spawnTimer -= dt;
+  const interval = Math.max(0.45, 1.1 - elapsed * 0.008);
+  if (spawnTimer <= 0) { spawnFish(); spawnTimer = interval; }
+
+  const hookHitX = hook.x;
+  const hookHitY = hook.y;
+  const canGrab = hook.phase === 'dropping' && !hook.hooked;
+
+  for (const f of fishes) {
+    if (f === hook.hooked) continue;      // already on the line
+    f.x += f.speed * f.dir * dt;
+    f.bob += dt * 3;
+    const drawY = f.y + Math.sin(f.bob) * f.bobAmp;
+
+    if (canGrab) {
+      const dx = f.x - hookHitX;
+      const dy = drawY - hookHitY;
+      const rad = f.type.size * 0.5 + 14;
+      if (dx * dx + dy * dy < rad * rad) {
+        // Hook it and start reeling in
+        f.y = drawY;
+        hook.hooked = f;
+        hook.phase = 'reeling';
+        splash(f.x, drawY, f.type.color);
+      }
+    }
+
+    // off screen
+    if ((f.dir === 1 && f.x > W + f.type.size) ||
+        (f.dir === -1 && f.x < -f.type.size)) {
+      f.dead = true;
+    }
+  }
+  fishes = fishes.filter(f => !f.dead || f === hook.hooked);
+}
+
+function landCatch(f) {
+  score += f.type.pts;
+  if (score < 0) score = 0;
+  f.dead = true;
+  splash(hook.x, hook.rest, f.type.color);
+  if (f.type.junk) Sound.junk(); else Sound.catch(f.type.pts);
+  const sign = f.type.pts >= 0 ? '+' : '';
+  scorePop(hook.x, hook.rest - 24, sign + f.type.pts, f.type.junk ? '#ffb4a0' : '#fff7ec');
+  updateHUD();
+}
+
+// ---- Draw ----
+function drawBackground() {
+  const sea = SEA_LEVEL();
+  // Sky
+  const sky = ctx.createLinearGradient(0, 0, 0, sea);
+  sky.addColorStop(0, getVar('--sky-top'));
+  sky.addColorStop(1, getVar('--sky-bot'));
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, sea);
+
+  // Sun
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = getVar('--sun');
+  ctx.beginPath();
+  ctx.arc(W - 70, sea * 0.42, Math.min(46, sea * 0.35), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Sea
+  const water = ctx.createLinearGradient(0, sea, 0, H);
+  water.addColorStop(0, getVar('--sea-top'));
+  water.addColorStop(0.5, getVar('--sea-mid'));
+  water.addColorStop(1, getVar('--sea-bot'));
+  ctx.fillStyle = water;
+  ctx.fillRect(0, sea, W, H - sea);
+
+  // Wavy waterline
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath();
+  ctx.moveTo(0, sea);
+  const t = elapsed;
+  for (let x = 0; x <= W; x += 12) {
+    const y = sea + Math.sin(x * 0.03 + t * 2) * 4;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, sea - 6);
+  ctx.lineTo(0, sea - 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Light rays
+  ctx.save();
+  ctx.globalAlpha = 0.08;
+  ctx.fillStyle = '#ffffff';
+  for (let i = 0; i < 4; i++) {
+    const rx = (W * (i + 0.5)) / 4 + Math.sin(t * 0.3 + i) * 20;
+    ctx.beginPath();
+    ctx.moveTo(rx - 30, sea);
+    ctx.lineTo(rx + 30, sea);
+    ctx.lineTo(rx + 90, H);
+    ctx.lineTo(rx - 90, H);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawBubbles() {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillStyle = 'rgba(255,255,255,0.14)';
+  ctx.lineWidth = 1.4;
+  for (const b of bubbles) {
+    if (b.y < SEA_LEVEL()) continue;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawHookAndLine() {
+  const sea = SEA_LEVEL();
+  ctx.save();
+  // fishing line from top down to hook
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(hook.x, 0);
+  ctx.lineTo(hook.x, hook.y);
+  ctx.stroke();
+
+  // little boat/reel marker at top
+  ctx.font = '30px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🎣', hook.x, 18);
+
+  // hook shape
+  ctx.strokeStyle = '#e9edf2';
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  const hx = hook.x, hy = hook.y;
+  ctx.beginPath();
+  ctx.moveTo(hx, hy - 16);
+  ctx.lineTo(hx, hy);
+  ctx.arc(hx, hy, 8, -Math.PI / 2, Math.PI * 0.9, false);
+  ctx.stroke();
+  // barb
+  ctx.beginPath();
+  ctx.moveTo(hx - 6, hy + 5);
+  ctx.lineTo(hx - 2, hy + 1);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawFish(f) {
+  const onLine = (f === hook.hooked);
+  const drawY = onLine ? f.y : f.y + Math.sin(f.bob) * f.bobAmp;
+  ctx.save();
+  ctx.translate(f.x, drawY);
+  if (f.dir === -1 && !f.type.junk) ctx.scale(-1, 1);
+  ctx.font = f.type.size + 'px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(f.type.emoji, 0, 0);
+  ctx.restore();
+}
+
+function drawSplashes() {
+  ctx.save();
+  for (const s of splashes) {
+    ctx.globalAlpha = Math.max(0, s.life / s.max);
+    ctx.fillStyle = s.color;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawScorePops() {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '800 26px "Baloo 2", Trebuchet MS, sans-serif';
+  for (const p of scorePops) {
+    ctx.globalAlpha = Math.max(0, 1 - p.life / p.max);
+    ctx.fillStyle = p.color;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(10,56,80,.55)';
+    ctx.strokeText(p.text, p.x, p.y);
+    ctx.fillText(p.text, p.x, p.y);
+  }
+  ctx.restore();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+  drawBubbles();
+  for (const f of fishes) drawFish(f);
+  if (state === State.PLAY) drawHookAndLine();
+  drawSplashes();
+  drawScorePops();
+}
+
+// ---- Loop ----
+function loop(ts) {
+  if (!lastTime) lastTime = ts;
+  let dt = (ts - lastTime) / 1000;
+  lastTime = ts;
+  if (dt > 0.05) dt = 0.05; // clamp big gaps
+  update(dt);
+  if (state === State.PLAY) updateHUD();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// helper: read CSS variable
+function getVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// seed some fish behind the menu for ambiance
+for (let i = 0; i < 6; i++) spawnFish();
+hook.y = SEA_LEVEL() + 40;
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
